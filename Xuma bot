@@ -1,0 +1,528 @@
+// modules/core.js - Example module
+module.exports = {
+    name: 'Core',
+    dependencies: [],
+    
+    async setup(bot) {
+        bot.registerModule('core', this);
+        
+        bot.use(async (msg) => {
+            // Reject messages from non-contacts
+            return (await msg.getContact()).isMyContact;
+        });
+    },
+
+    match(context) {
+        return context.body.startsWith(config.prefix);
+    },
+
+    async handle(context) {
+        const [command, ...args] = context.body
+            .slice(config.prefix.length)
+            .split(/ +/);
+
+        switch(command.toLowerCase()) {
+            case 'help':
+                await this.showHelp(context);
+                break;
+            case 'ping':
+                await context.reply('Pong! 🏓');
+                break;
+        }
+    },
+
+    async showHelp(context) {
+        const helpText = `Available commands:
+${config.prefix}help - Show this help
+${config.prefix}ping - Test responsiveness`;
+        await context.reply(helpText);
+    }
+};
+
+account_sid = 'YOUR_ACCOUNT_SID'
+auth_token = 'YOUR_AUTH_TOKEN'
+client = Client(account_sid, auth_token)
+
+app = Flask(__name__)
+
+@app.route("/whatsapp", methods=['POST'])
+def incoming_message():
+    message_body = request.form['Body']
+    from_number = request.form['From']
+    
+    if message_body.lower() == 'status':
+        response = "System Status: Operational ✅"
+    else:
+        response = "Sorry, I didn't understand that command."
+    
+    client.messages.create(
+        body=response,
+        from_='whatsapp:+2348133534246',
+        to=from_number
+    )
+    
+    return '', 200
+
+if __name__ == "__main__":
+    app.run(port=5000)
+// config.js - Central configuration
+module.exports = {
+    name: "FlexiBot",
+    prefix: "!",
+    puppeteer: {
+        headless: true,
+        args: ['--no-sandbox']
+    },
+    modules: {
+        core: {
+            enabled: true,
+            commands: ['help', 'ping']
+        },
+        ai: {
+            enabled: false,
+            apiKey: process.env.AI_KEY
+        }
+    }
+};
+// core/bot.js - Main bot instance
+const { Client, LocalAuth } = require('whatsapp-web.js');
+const { initializeModules } = require('./modules');
+const config = require('../config');
+
+class WhatsAppBot {
+    constructor() {
+        this.client = new Client({
+            authStrategy: new LocalAuth(),
+            puppeteer: config.puppeteer
+        });
+        this.modules = new Map();
+        this.middlewares = [];
+    }
+
+    async    async initialize() {
+        // Load modules and middlewares
+        await initializeModules(this);
+        
+        // Core event handlers
+        this.client.on('qr', qr => this.emit('qr', qr));
+        this.client.on('ready', () => this.emit('ready'));
+        this.client.on('message', msg => this.handleMessage(msg));
+        
+        await this.client.initialize();
+    }
+
+    async handleMessage(msg) {
+        try {
+            // Run message through middleware chain
+            for (const middleware of this.middlewares) {
+                if (await middleware(msg) === false) return;
+            }
+            
+            // Get processed message context
+            const context = await this.createContext(msg);
+            
+            // Dispatch to modules
+            for (const [name, module] of this.modules) {
+                if (module.match(context)) {
+                    await module.handle(context);
+                }
+            }
+        } catch (error) {
+            this.emit('error', error, msg);
+        }
+    }
+
+    async createContext(msg) {
+        return {
+            raw: msg,
+            body: msg.body,
+            sender: await msg.getContact(),
+            chat: await msg.getChat(),
+            reply: async (content, options) => {
+                return msg.reply(content, options);
+            },
+            react: async (emoji) => {
+                return msg.react(emoji);
+            }
+        };
+    }
+
+    registerModule(name, module) {
+        this.modules.set(name, module);
+    }
+
+    use(middleware) {
+        this.middlewares.push(middleware);
+    }
+
+    emit(event, ...args) {
+        // Handle core events
+        switch(event) {
+            case 'qr':
+                require('qrcode-terminal').generate(args[0], { small: true });
+                break;
+            case 'ready':
+                console.log(`Bot ready as ${config.name}`);
+                break;
+            case 'error':
+                console.error('Error:', args[0]);
+                args[1]?.reply('⚠️ An error occurred');
+                break;
+        }
+    }
+}
+
+module.exports = new WhatsAppBot();
+// core/bot.js - Main bot instance
+const { Client, LocalAuth } = require('whatsapp-web.js');
+const { initializeModules } = require('./modules');
+const config = require('../config');
+
+class WhatsAppBot {
+    constructor() {
+        this.client = new Client({
+            authStrategy: new LocalAuth(),
+            puppeteer: config.puppeteer
+        });
+        this.modules = new Map();
+        this.middlewares = [];
+    }
+
+    async    async initialize() {
+        // Load modules and middlewares
+        await initializeModules(this);
+        
+        // Core event handlers
+        this.client.on('qr', qr => this.emit('qr', qr));
+        this.client.on('ready', () => this.emit('ready'));
+        this.client.on('message', msg => this.handleMessage(msg));
+        
+        await this.client.initialize();
+    }
+
+    async handleMessage(msg) {
+        try {
+            // Run message through middleware chain
+            for (const middleware of this.middlewares) {
+                if (await middleware(msg) === false) return;
+            }
+            
+            // Get processed message context
+            const context = await this.createContext(msg);
+            
+            // Dispatch to modules
+            for (const [name, module] of this.modules) {
+                if (module.match(context)) {
+                    await module.handle(context);
+                }
+            }
+        } catch (error) {
+            this.emit('error', error, msg);
+        }
+    }
+
+    async createContext(msg) {
+        return {
+            raw: msg,
+            body: msg.body,
+            sender: await msg.getContact(),
+            chat: await msg.getChat(),
+            reply: async (content, options) => {
+                return msg.reply(content, options);
+            },
+            react: async (emoji) => {
+                return msg.react(emoji);
+            }
+        };
+    }
+
+    registerModule(name, module) {
+        this.modules.set(name, module);
+    }
+
+    use(middleware) {
+        this.middlewares.push(middleware);
+    }
+
+    emit(event, ...args) {
+        // Handle core events
+        switch(event) {
+            case 'qr':
+                require('qrcode-terminal').generate(args[0], { small: true });
+                break;
+            case 'ready':
+                console.log(`Bot ready as ${config.name}`);
+                break;
+            case 'error':
+                console.error('Error:', args[0]);
+                args[1]?.reply('⚠️ An error occurred');
+                break;
+        }
+    }
+}
+
+module.exports = new WhatsAppBot();// core/bot.js - Main bot instance
+const { Client, LocalAuth } = require('whatsapp-web.js');
+const { initializeModules } = require('./modules');
+const config = require('../config');
+
+class WhatsAppBot {
+    constructor() {
+        this.client = new Client({
+            authStrategy: new LocalAuth(),
+            puppeteer: config.puppeteer
+        });
+        this.modules = new Map();
+        this.middlewares = [];
+    }
+
+    async    async initialize() {
+        // Load modules and middlewares
+        await initializeModules(this);
+        
+        // Core event handlers
+        this.client.on('qr', qr => this.emit('qr', qr));
+        this.client.on('ready', () => this.emit('ready'));
+        this.client.on('message', msg => this.handleMessage(msg));
+        
+        await this.client.initialize();
+    }
+
+    async handleMessage(msg) {
+        try {
+            // Run message through middleware chain
+            for (const middleware of this.middlewares) {
+                if (await middleware(msg) === false) return;
+            }
+            
+            // Get processed message context
+            const context = await this.createContext(msg);
+            
+            // Dispatch to modules
+            for (const [name, module] of this.modules) {
+                if (module.match(context)) {
+                    await module.handle(context);
+                }
+            }
+        } catch (error) {
+            this.emit('error', error, msg);
+        }
+    }
+
+    async createContext(msg) {
+        return {
+            raw: msg,
+            body: msg.body,
+            sender: await msg.getContact(),
+            chat: await msg.getChat(),
+            reply: async (content, options) => {
+                return msg.reply(content, options);
+            },
+            react: async (emoji) => {
+                return msg.react(emoji);
+            }
+        };
+    }
+
+    registerModule(name, module) {
+        this.modules.set(name, module);
+    }
+
+    use(middleware) {
+        this.middlewares.push(middleware);
+    }
+
+    emit(event, ...args) {
+        // Handle core events
+        switch(event) {
+            case 'qr':
+                require('qrcode-terminal').generate(args[0], { small: true });
+                break;
+            case 'ready':
+                console.log(`Bot ready as ${config.name}`);
+                break;
+            case 'error':
+                console.error('Error:', args[0]);
+                args[1]?.reply('⚠️ An error occurred');
+                break;
+        }
+    }
+}
+
+module.exports = new WhatsAppBot();// core/bot.js - Main bot instance
+const { Client, LocalAuth } = require('whatsapp-web.js');
+const { initializeModules } = require('./modules');
+const config = require('../config');
+
+class WhatsAppBot {
+    constructor() {
+        this.client = new Client({
+            authStrategy: new LocalAuth(),
+            puppeteer: config.puppeteer
+        });
+        this.modules = new Map();
+        this.middlewares = [];
+    }
+
+    async    async initialize() {
+        // Load modules and middlewares
+        await initializeModules(this);
+        
+        // Core event handlers
+        this.client.on('qr', qr => this.emit('qr', qr));
+        this.client.on('ready', () => this.emit('ready'));
+        this.client.on('message', msg => this.handleMessage(msg));
+        
+        await this.client.initialize();
+    }
+
+    async handleMessage(msg) {
+        try {
+            // Run message through middleware chain
+            for (const middleware of this.middlewares) {
+                if (await middleware(msg) === false) return;
+            }
+            
+            // Get processed message context
+            const context = await this.createContext(msg);
+            
+            // Dispatch to modules
+            for (const [name, module] of this.modules) {
+                if (module.match(context)) {
+                    await module.handle(context);
+                }
+            }
+        } catch (error) {
+            this.emit('error', error, msg);
+        }
+    }
+
+    async createContext(msg) {
+        return {
+            raw: msg,
+            body: msg.body,
+            sender: await msg.getContact(),
+            chat: await msg.getChat(),
+            reply: async (content, options) => {
+                return msg.reply(content, options);
+            },
+            react: async (emoji) => {
+                return msg.react(emoji);
+            }
+        };
+    }
+
+    registerModule(name, module) {
+        this.modules.set(name, module);
+    }
+
+    use(middleware) {
+        this.middlewares.push(middleware);
+    }
+
+    emit(event, ...args) {
+        // Handle core events
+        switch(event) {
+            case 'qr':
+                require('qrcode-terminal').generate(args[0], { small: true });
+                break;
+            case 'ready':
+                console.log(`Bot ready as ${config.name}`);
+                break;
+            case 'error':
+                console.error('Error:', args[0]);
+                args[1]?.reply('⚠️ An error occurred');
+                break;
+        }
+    }
+}
+
+module.exports = new WhatsAppBot();// core/bot.js - Main bot instance
+const { Client, LocalAuth } = require('whatsapp-web.js');
+const { initializeModules } = require('./modules');
+const config = require('../config');
+
+class WhatsAppBot {
+    constructor() {
+        this.client = new Client({
+            authStrategy: new LocalAuth(),
+            puppeteer: config.puppeteer
+        });
+        this.modules = new Map();
+        this.middlewares = [];
+    }
+
+    async    async initialize() {
+        // Load modules and middlewares
+        await initializeModules(this);
+        
+        // Core event handlers
+        this.client.on('qr', qr => this.emit('qr', qr));
+        this.client.on('ready', () => this.emit('ready'));
+        this.client.on('message', msg => this.handleMessage(msg));
+        
+        await this.client.initialize();
+    }
+
+    async handleMessage(msg) {
+        try {
+            // Run message through middleware chain
+            for (const middleware of this.middlewares) {
+                if (await middleware(msg) === false) return;
+            }
+            
+            // Get processed message context
+            const context = await this.createContext(msg);
+            
+            // Dispatch to modules
+            for (const [name, module] of this.modules) {
+                if (module.match(context)) {
+                    await module.handle(context);
+                }
+            }
+        } catch (error) {
+            this.emit('error', error, msg);
+        }
+    }
+
+    async createContext(msg) {
+        return {
+            raw: msg,
+            body: msg.body,
+            sender: await msg.getContact(),
+            chat: await msg.getChat(),
+            reply: async (content, options) => {
+                return msg.reply(content, options);
+            },
+            react: async (emoji) => {
+                return msg.react(emoji);
+            }
+        };
+    }
+
+    registerModule(name, module) {
+        this.modules.set(name, module);
+    }
+
+    use(middleware) {
+        this.middlewares.push(middleware);
+    }
+
+    emit(event, ...args) {
+        // Handle core events
+        switch(event) {
+            case 'qr':
+                require('qrcode-terminal').generate(args[0], { small: true });
+                break;
+            case 'ready':
+                console.log(`Bot ready as ${config.name}`);
+                break;
+            case 'error':
+                console.error('Error:', args[0]);
+                args[1]?.reply('⚠️ An error occurred');
+                break;
+        }
+    }
+}
+
+module.exports = new WhatsAppBot();this.client
